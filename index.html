@@ -668,6 +668,9 @@ function handleFile(file) {
 
 async function ocrReceipt(b64, mimeType) {
   mimeType = mimeType || 'image/jpeg';
+  // GeminiはJPEG/PNG/WEBP/HEICをサポート。HEICはjpegに変換
+  if (mimeType === 'image/heic' || mimeType === 'image/heif') mimeType = 'image/jpeg';
+
   const status = document.getElementById('ocr-status');
   status.style.display = 'block';
   status.textContent = '🔍 領収書を読み取り中…';
@@ -678,18 +681,14 @@ async function ocrReceipt(b64, mimeType) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{
+          role: 'user',
           parts: [
             { inline_data: { mime_type: mimeType, data: b64 } },
-            { text: `この領収書・レシート画像から以下の情報を読み取り、JSONのみで返してください（コードブロック・余分なテキスト不要）:
-{
-  "amount": 合計金額（数値のみ、税込み最終金額。読み取れない場合は0）,
-  "date": "日付（YYYY/MM/DD形式。読み取れない場合は空文字）",
-  "store": "店名・会社名（読み取れない場合は空文字）",
-  "items": "主な品目・内容（読み取れない場合は空文字）"
-}` }
+            { text: 'この領収書・レシート画像から以下の情報を読み取り、JSONのみで返してください（コードブロック・余分なテキスト不要）:
+{"amount": 合計金額の数値のみ税込み最終金額読み取れない場合は0, "date": "日付YYYY/MM/DD形式読み取れない場合は空文字", "store": "店名会社名読み取れない場合は空文字", "items": "主な品目内容読み取れない場合は空文字"}' }
           ]
         }],
-        generationConfig: { temperature: 0 }
+        generationConfig: { temperature: 0, responseMimeType: 'application/json' }
       })
     });
 
@@ -796,8 +795,8 @@ ${imageBase64 ? '（領収書画像あり）' : '（画像なし）'}
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: { temperature: 0 }
+        contents: [{ role: 'user', parts }],
+        generationConfig: { temperature: 0, responseMimeType: 'application/json' }
       })
     });
 
