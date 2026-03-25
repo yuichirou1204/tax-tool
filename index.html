@@ -490,6 +490,16 @@
   <div class="badge">AI Powered</div>
 </header>
 
+
+<div id="api-key-banner" style="display:none;background:#1a1a2e;color:#f5f0e8;padding:20px 40px;position:sticky;top:72px;z-index:99;border-bottom:2px solid #b8860b;">
+  <div style="max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+    <span style="font-family:Space Mono,monospace;font-size:11px;letter-spacing:2px;color:#b8860b;">⚠ GEMINI API KEY</span>
+    <span style="font-size:13px;flex:1">Gemini APIキーを入力してください。キーは<a href="https://aistudio.google.com" target="_blank" style="color:#f0d060;">aistudio.google.com</a>で取得できます。</span>
+    <input id="api-key-input" type="password" placeholder="AIzaSy..." style="border:1px solid #b8860b;background:#2a2a3e;color:#f5f0e8;padding:8px 12px;font-family:Space Mono,monospace;font-size:12px;width:280px;outline:none;">
+    <button onclick="saveApiKey()" style="background:#b8860b;color:#1a1a2e;border:none;padding:8px 20px;font-family:Space Mono,monospace;font-size:11px;letter-spacing:2px;cursor:pointer;">保存</button>
+  </div>
+</div>
+
 <main>
   <!-- Input Panel -->
   <div class="panel">
@@ -624,8 +634,28 @@
 
 <script>
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzRIu38xHNbfN0h_GPNc6w0tcRrRlykrnPvdIghd2BCvsEzFH4Nn17l4liSUG6pBIk0AQ/exec';
-const GEMINI_KEY = 'AIzaSyDeyZleq7dIJNA0ET5QQgBRkjF-CwqCVvw';
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_KEY;
+
+function getGeminiUrl() {
+  var key = localStorage.getItem('gemini_api_key') || '';
+  return 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key;
+}
+
+function checkApiKey() {
+  var key = localStorage.getItem('gemini_api_key') || '';
+  if (!key) {
+    document.getElementById('api-key-banner').style.display = 'block';
+    return false;
+  }
+  return true;
+}
+
+function saveApiKey() {
+  var key = document.getElementById('api-key-input').value.trim();
+  if (!key) { alert('APIキーを入力してください。'); return; }
+  localStorage.setItem('gemini_api_key', key);
+  document.getElementById('api-key-banner').style.display = 'none';
+  alert('APIキーを保存しました！');
+}
 
 let records = [];
 let currentResult = null;
@@ -682,6 +712,7 @@ function resizeImage(b64, mimeType) {
 }
 
 async function ocrReceipt(b64, mimeType) {
+  if (!checkApiKey()) return;
   var status = document.getElementById('ocr-status');
   status.style.display = 'block';
   status.textContent = '🔍 領収書を読み取り中…';
@@ -701,7 +732,7 @@ async function ocrReceipt(b64, mimeType) {
       generationConfig: { temperature: 0 }
     };
 
-    var res = await fetch(GEMINI_URL, {
+    var res = await fetch(getGeminiUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -746,6 +777,7 @@ async function analyze() {
   var amount = document.getElementById('amount').value.trim();
   var date = document.getElementById('date').value.trim();
 
+  if (!checkApiKey()) return;
   if (!purpose && !imageBase64) {
     alert('領収書の写真または利用目的を入力してください。');
     return;
@@ -771,7 +803,7 @@ async function analyze() {
       generationConfig: { temperature: 0 }
     };
 
-    var response = await fetch(GEMINI_URL, {
+    var response = await fetch(getGeminiUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -966,6 +998,7 @@ function setLoading(v) {
   btn.disabled = v;
 }
 
+checkApiKey();
 loadFromSheets();
 </script>
 </body>
