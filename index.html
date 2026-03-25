@@ -703,8 +703,7 @@ async function ocrReceipt(b64, mimeType) {
         contents: [{
           parts: [
             { inline_data: { mime_type: 'image/jpeg', data: jpegB64 } },
-            { text: 'この領収書・レシートから情報を読み取り、以下のJSON形式のみで返してください。他のテキストは不要です。
-{"amount":合計金額の数値,"date":"YYYY/MM/DD形式の日付","store":"店名","items":"品目"}' }
+            { text: 'この領収書から情報を読み取りJSONのみ返してください。{"amount":金額の数値,"date":"YYYY/MM/DD","store":"店名","items":"品目"}' }
           ]
         }],
         generationConfig: { temperature: 0 }
