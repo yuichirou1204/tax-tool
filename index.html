@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -647,7 +648,10 @@ dropZone.addEventListener('drop', e => {
   if (file) handleFile(file);
 });
 
+let imageMimeType = 'image/jpeg';
+
 function handleFile(file) {
+  imageMimeType = file.type || 'image/jpeg';
   const reader = new FileReader();
   reader.onload = async e => {
     const dataUrl = e.target.result;
@@ -656,12 +660,13 @@ function handleFile(file) {
     document.getElementById('preview-name').textContent = file.name;
     document.getElementById('preview-container').style.display = 'block';
     // OCR自動読み取り
-    await ocrReceipt(imageBase64);
+    await ocrReceipt(imageBase64, imageMimeType);
   };
   reader.readAsDataURL(file);
 }
 
-async function ocrReceipt(b64) {
+async function ocrReceipt(b64, mimeType) {
+  mimeType = mimeType || 'image/jpeg';
   const status = document.getElementById('ocr-status');
   status.style.display = 'block';
   status.textContent = '🔍 領収書を読み取り中…';
@@ -681,7 +686,7 @@ async function ocrReceipt(b64) {
         messages: [{
           role: 'user',
           content: [
-            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+            { type: 'image', source: { type: 'base64', media_type: mimeType, data: b64 } },
             { type: 'text', text: `この領収書・レシート画像から以下の情報を読み取り、JSONのみで返してください（コードブロック不要）:
 {
   "amount": 合計金額（数値のみ、税込み最終金額。読み取れない場合は0）,
@@ -746,7 +751,7 @@ async function analyze() {
 
   const userContent = [];
   if (imageBase64) {
-    userContent.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } });
+    userContent.push({ type: 'image', source: { type: 'base64', media_type: imageMimeType, data: imageBase64 } });
   }
   userContent.push({
     type: 'text',
