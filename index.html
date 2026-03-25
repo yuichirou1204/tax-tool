@@ -864,11 +864,7 @@ async function saveRecord() {
     await fetch(GAS_URL, {
       method: 'POST',
       mode: 'no-cors',
-      headers: {
-          'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(currentResult)
     });
 
