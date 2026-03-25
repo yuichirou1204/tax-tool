@@ -505,6 +505,7 @@
       </div>
     </div>
 
+    <div id="ocr-status" style="display:none;font-family:Space Mono,monospace;font-size:11px;letter-spacing:2px;color:var(--gold);padding:10px 0;text-align:center"></div>
     <div id="preview-container">
       <img id="preview-img" src="" alt="preview">
       <div id="preview-name"></div>
@@ -515,11 +516,11 @@
 
     <div class="amount-row">
       <div>
-        <label for="amount">金額（円）</label>
+        <label for="amount">金額（円）<span id="amount-hint" style="color:var(--gold);margin-left:6px;font-size:9px"></span></label>
         <input type="text" id="amount" placeholder="例：12,800">
       </div>
       <div>
-        <label for="date">日付</label>
+        <label for="date">日付<span id="date-hint" style="color:var(--gold);margin-left:6px;font-size:9px"></span></label>
         <input type="text" id="date" id="date" placeholder="例：2025/03/15">
       </div>
     </div>
@@ -648,14 +649,78 @@ dropZone.addEventListener('drop', e => {
 
 function handleFile(file) {
   const reader = new FileReader();
-  reader.onload = e => {
+  reader.onload = async e => {
     const dataUrl = e.target.result;
     imageBase64 = dataUrl.split(',')[1];
     document.getElementById('preview-img').src = dataUrl;
     document.getElementById('preview-name').textContent = file.name;
     document.getElementById('preview-container').style.display = 'block';
+    // OCR自動読み取り
+    await ocrReceipt(imageBase64);
   };
   reader.readAsDataURL(file);
+}
+
+async function ocrReceipt(b64) {
+  const status = document.getElementById('ocr-status');
+  status.style.display = 'block';
+  status.textContent = '🔍 領収書を読み取り中…';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 500,
+        system: '領収書・レシート画像から情報を抽出します。JSONのみで返答してください。',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+            { type: 'text', text: `この領収書・レシート画像から以下の情報を読み取り、JSONのみで返してください（コードブロック不要）:
+{
+  "amount": 合計金額（数値のみ、税込み最終金額。読み取れない場合は0）,
+  "date": "日付（YYYY/MM/DD形式。読み取れない場合は空文字）",
+  "store": "店名・会社名（読み取れない場合は空文字）",
+  "items": "主な品目・内容（読み取れない場合は空文字）"
+}` }
+          ]
+        }]
+      })
+    });
+
+    const data = await res.json();
+    const text = data.content.map(i => i.text || '').join('');
+    const clean = text.replace(/```json|```/g, '').trim();
+    const ocr = JSON.parse(clean);
+
+    // 金額を自動入力
+    if (ocr.amount && ocr.amount > 0) {
+      document.getElementById('amount').value = ocr.amount.toLocaleString();
+      document.getElementById('amount-hint').textContent = '✓ 自動読み取り';
+    }
+    // 日付を自動入力
+    if (ocr.date) {
+      document.getElementById('date').value = ocr.date;
+      document.getElementById('date-hint').textContent = '✓ 自動読み取り';
+    }
+    // 店名・品目を目的欄にヒントとして入れる
+    if (!document.getElementById('purpose').value) {
+      const hint = [ocr.store, ocr.items].filter(Boolean).join(' / ');
+      if (hint) document.getElementById('purpose').value = hint;
+    }
+
+    status.textContent = '✓ 読み取り完了！内容を確認・修正して分析してください';
+    status.style.color = 'var(--gold)';
+    setTimeout(() => { status.style.display = 'none'; }, 4000);
+
+  } catch (err) {
+    status.textContent = '画像の読み取りに失敗しました。手動で入力してください。';
+    status.style.color = 'var(--red)';
+    setTimeout(() => { status.style.display = 'none'; }, 4000);
+    console.error(err);
+  }
 }
 
 // Set today's date by default
