@@ -684,8 +684,7 @@ async function ocrReceipt(b64, mimeType) {
           role: 'user',
           parts: [
             { inline_data: { mime_type: mimeType, data: b64 } },
-            { text: 'この領収書・レシート画像から以下の情報を読み取り、JSONのみで返してください（コードブロック・余分なテキスト不要）:
-{"amount": 合計金額の数値のみ税込み最終金額読み取れない場合は0, "date": "日付YYYY/MM/DD形式読み取れない場合は空文字", "store": "店名会社名読み取れない場合は空文字", "items": "主な品目内容読み取れない場合は空文字"}' }
+            { text: 'この領収書から情報を読み取りJSONのみで返してください。{"amount": 税込合計金額の数値読み取れない場合は0, "date": "日付YYYY/MM/DD形式読み取れない場合は空文字", "store": "店名読み取れない場合は空文字", "items": "品目読み取れない場合は空文字"}' }
           ]
         }],
         generationConfig: { temperature: 0, responseMimeType: 'application/json' }
