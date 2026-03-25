@@ -742,31 +742,6 @@ async function analyze() {
 
   setLoading(true);
 
-  const userContent = [];
-  if (imageBase64) {
-    userContent.push({ type: 'image', source: { type: 'base64', media_type: imageMimeType, data: imageBase64 } });
-  }
-  userContent.push({
-    type: 'text',
-    text: `以下の情報をもとに、日本の確定申告・会計処理のための仕訳を判断してください。
-
-利用目的・メモ: ${purpose || '（未入力）'}
-金額: ${amount || '（未入力）'}円
-日付: ${date}
-${imageBase64 ? '（領収書画像あり）' : '（画像なし）'}
-
-以下の形式でJSONのみを返してください（コードブロック不要）:
-{
-  "category": "勘定科目名（例：会議費、接待交際費、旅費交通費、通信費、消耗品費、地代家賃、広告宣伝費、外注費、雑費 など）",
-  "sub_category": "補助科目（例：会食、電車賃、サブスク など簡潔に）",
-  "tax_class": "税区分（課税仕入／非課税仕入／不課税 のいずれか）",
-  "consumption_tax": 消費税額（数値、10%または8%で計算。計算できない場合は0）,
-  "deductible": "full（全額）/ partial（一部）/ no（経費不可）のいずれか",
-  "deductible_ratio": 経費計上率（0〜100の数値）,
-  "reason": "仕訳判断の根拠を日本語で2〜3文で説明"
-}`
-  });
-
   try {
     // Build Gemini parts
     const parts = [];
