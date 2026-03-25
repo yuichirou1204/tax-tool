@@ -942,18 +942,20 @@ function renderTable() {
 function exportCSV() {
   if (records.length === 0) { alert('記録がありません。'); return; }
   var headers = ['日付','勘定科目','補助科目','利用目的','金額','税区分','消費税','経費計上'];
-  var rows = records.map(function(r) {
-    return [r.date, r.category, r.sub_category||'', r.purpose, r.amount, r.tax_class||'', r.consumption_tax||'',
-      r.deductible === 'full' ? '全額' : r.deductible === 'partial' ? '一部' : '不可'];
+  var lines = [];
+  lines.push(headers.map(function(v){ return '"'+v+'"'; }).join(','));
+  records.forEach(function(r) {
+    var deductLabel = r.deductible === 'full' ? '全額' : r.deductible === 'partial' ? '一部' : '不可';
+    var row = [r.date, r.category, r.sub_category||'', r.purpose, r.amount, r.tax_class||'', r.consumption_tax||'', deductLabel];
+    lines.push(row.map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(','));
   });
-  var csv = [headers].concat(rows).map(function(r) {
-    return r.map(function(v) { return '"' + String(v).replace(/"/g,'""') + '"'; }).join(',');
-  }).join('\n');
-  var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  var bom = String.fromCharCode(0xFEFF);
+  var csv = bom + lines.join(String.fromCharCode(13,10));
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
-  a.download = '仕訳帳_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.download = 'jiwaricho_' + new Date().toISOString().slice(0,10) + '.csv';
   a.click();
 }
 
