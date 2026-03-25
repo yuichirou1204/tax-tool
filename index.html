@@ -666,25 +666,45 @@ function handleFile(file) {
   reader.readAsDataURL(file);
 }
 
+async function resizeImage(b64, mimeType) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const max = 1024;
+      let w = img.width, h = img.height;
+      if (w > max || h > max) {
+        if (w > h) { h = Math.round(h * max / w); w = max; }
+        else { w = Math.round(w * max / h); h = max; }
+      }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+    };
+    img.src = `data:${mimeType};base64,${b64}`;
+  });
+}
+
 async function ocrReceipt(b64, mimeType) {
   mimeType = mimeType || 'image/jpeg';
-  // GeminiはJPEG/PNG/WEBP/HEICをサポート。HEICはjpegに変換
-  if (mimeType === 'image/heic' || mimeType === 'image/heif') mimeType = 'image/jpeg';
 
   const status = document.getElementById('ocr-status');
   status.style.display = 'block';
   status.textContent = '🔍 領収書を読み取り中…';
 
   try {
+    // 画像をJPEGにリサイズ変換
+    const jpegB64 = await resizeImage(b64, mimeType);
+
     const res = await fetch(GEMINI_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{
-          role: 'user',
           parts: [
-            { inline_data: { mime_type: mimeType, data: b64 } },
-            { text: `この領収書から情報を読み取り、JSONのみで返してください。{"amount": 税込合計金額の数値(読み取れない場合は0), "date": "日付をYYYY/MM/DD形式で(読み取れない場合は空文字)", "store": "店名(読み取れない場合は空文字)", "items": "品目(読み取れない場合は空文字)"}` }
+            { inline_data: { mime_type: 'image/jpeg', data: jpegB64 } },
+            { text: 'この領収書・レシートから情報を読み取り、以下のJSON形式のみで返してください。他のテキストは不要です。
+{"amount":合計金額の数値,"date":"YYYY/MM/DD形式の日付","store":"店名","items":"品目"}' }
           ]
         }],
         generationConfig: { temperature: 0 }
@@ -692,6 +712,7 @@ async function ocrReceipt(b64, mimeType) {
     });
 
     const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const clean = text.replace(/```json|```/g, '').trim();
     const ocr = JSON.parse(clean);
