@@ -669,7 +669,11 @@ async function ocrReceipt(b64) {
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+          'Content-Type': 'application/json',
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 500,
@@ -768,7 +772,11 @@ ${imageBase64 ? '（領収書画像あり）' : '（画像なし）'}
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+          'Content-Type': 'application/json',
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
@@ -840,7 +848,11 @@ async function saveRecord() {
     await fetch(GAS_URL, {
       method: 'POST',
       mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+          'Content-Type': 'application/json',
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
       body: JSON.stringify(currentResult)
     });
 
