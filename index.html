@@ -687,7 +687,7 @@ async function ocrReceipt(b64, mimeType) {
             { text: `この領収書から情報を読み取り、JSONのみで返してください。{"amount": 税込合計金額の数値(読み取れない場合は0), "date": "日付をYYYY/MM/DD形式で(読み取れない場合は空文字)", "store": "店名(読み取れない場合は空文字)", "items": "品目(読み取れない場合は空文字)"}` }
           ]
         }],
-        generationConfig: { temperature: 0, responseMimeType: 'application/json' }
+        generationConfig: { temperature: 0 }
       })
     });
 
@@ -770,7 +770,7 @@ ${imageBase64 ? '（領収書画像あり）' : '（画像なし）'}
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ role: 'user', parts }],
-        generationConfig: { temperature: 0, responseMimeType: 'application/json' }
+        generationConfig: { temperature: 0 }
       })
     });
 
