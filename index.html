@@ -624,55 +624,51 @@
 
 <script>
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzRIu38xHNbfN0h_GPNc6w0tcRrRlykrnPvdIghd2BCvsEzFH4Nn17l4liSUG6pBIk0AQ/exec';
-const GEMINI_API_KEY = 'AIzaSyCCoSI2QBAu5tN5VVtYT-xK6KCGIluBw-o';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_KEY = 'AIzaSyCCoSI2QBAu5tN5VVtYT-xK6KCGIluBw-o';
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_KEY;
 
 let records = [];
 let currentResult = null;
 let imageBase64 = null;
+let imageMimeType = 'image/jpeg';
 
-// File upload
 const fileInput = document.getElementById('fileInput');
 const dropZone = document.getElementById('dropZone');
 
-fileInput.addEventListener('change', e => {
-  const file = e.target.files[0];
+fileInput.addEventListener('change', function(e) {
+  var file = e.target.files[0];
   if (file) handleFile(file);
 });
-
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => {
+dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('drag-over'); });
+dropZone.addEventListener('drop', function(e) {
   e.preventDefault();
   dropZone.classList.remove('drag-over');
-  const file = e.dataTransfer.files[0];
+  var file = e.dataTransfer.files[0];
   if (file) handleFile(file);
 });
-
-let imageMimeType = 'image/jpeg';
 
 function handleFile(file) {
   imageMimeType = file.type || 'image/jpeg';
-  const reader = new FileReader();
-  reader.onload = async e => {
-    const dataUrl = e.target.result;
+  var reader = new FileReader();
+  reader.onload = async function(e) {
+    var dataUrl = e.target.result;
     imageBase64 = dataUrl.split(',')[1];
     document.getElementById('preview-img').src = dataUrl;
     document.getElementById('preview-name').textContent = file.name;
     document.getElementById('preview-container').style.display = 'block';
-    // OCR自動読み取り
     await ocrReceipt(imageBase64, imageMimeType);
   };
   reader.readAsDataURL(file);
 }
 
-async function resizeImage(b64, mimeType) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const max = 1024;
-      let w = img.width, h = img.height;
+function resizeImage(b64, mimeType) {
+  return new Promise(function(resolve) {
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement('canvas');
+      var max = 1024;
+      var w = img.width, h = img.height;
       if (w > max || h > max) {
         if (w > h) { h = Math.round(h * max / w); w = max; }
         else { w = Math.round(w * max / h); h = max; }
@@ -681,78 +677,74 @@ async function resizeImage(b64, mimeType) {
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
       resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
     };
-    img.src = `data:${mimeType};base64,${b64}`;
+    img.src = 'data:' + mimeType + ';base64,' + b64;
   });
 }
 
 async function ocrReceipt(b64, mimeType) {
-  mimeType = mimeType || 'image/jpeg';
-
-  const status = document.getElementById('ocr-status');
+  var status = document.getElementById('ocr-status');
   status.style.display = 'block';
   status.textContent = '🔍 領収書を読み取り中…';
+  status.style.color = 'var(--gold)';
 
   try {
-    // 画像をJPEGにリサイズ変換
-    const jpegB64 = await resizeImage(b64, mimeType);
+    var jpegB64 = await resizeImage(b64, mimeType);
+    var prompt = 'この領収書の合計金額・日付・店名・品目をJSONで返してください。形式: {"amount":数値,"date":"YYYY/MM/DD","store":"店名","items":"品目"}';
 
-    const res = await fetch(GEMINI_URL, {
+    var body = {
+      contents: [{
+        parts: [
+          { inline_data: { mime_type: 'image/jpeg', data: jpegB64 } },
+          { text: prompt }
+        ]
+      }],
+      generationConfig: { temperature: 0 }
+    };
+
+    var res = await fetch(GEMINI_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { inline_data: { mime_type: 'image/jpeg', data: jpegB64 } },
-            { text: 'この領収書から情報を読み取りJSONのみ返してください。{"amount":金額の数値,"date":"YYYY/MM/DD","store":"店名","items":"品目"}' }
-          ]
-        }],
-        generationConfig: { temperature: 0 }
-      })
+      body: JSON.stringify(body)
     });
 
-    const data = await res.json();
+    var data = await res.json();
     if (data.error) throw new Error(data.error.message);
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const clean = text.replace(/```json|```/g, '').trim();
-    const ocr = JSON.parse(clean);
 
-    // 金額を自動入力
+    var text = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || '';
+    var clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    var ocr = JSON.parse(clean);
+
     if (ocr.amount && ocr.amount > 0) {
-      document.getElementById('amount').value = ocr.amount.toLocaleString();
+      document.getElementById('amount').value = Number(ocr.amount).toLocaleString();
       document.getElementById('amount-hint').textContent = '✓ 自動読み取り';
     }
-    // 日付を自動入力
     if (ocr.date) {
       document.getElementById('date').value = ocr.date;
       document.getElementById('date-hint').textContent = '✓ 自動読み取り';
     }
-    // 店名・品目を目的欄にヒントとして入れる
     if (!document.getElementById('purpose').value) {
-      const hint = [ocr.store, ocr.items].filter(Boolean).join(' / ');
+      var hint = [ocr.store, ocr.items].filter(Boolean).join(' / ');
       if (hint) document.getElementById('purpose').value = hint;
     }
 
     status.textContent = '✓ 読み取り完了！内容を確認・修正して分析してください';
-    status.style.color = 'var(--gold)';
-    setTimeout(() => { status.style.display = 'none'; }, 4000);
+    setTimeout(function() { status.style.display = 'none'; }, 4000);
 
   } catch (err) {
-    status.textContent = '画像の読み取りに失敗しました。手動で入力してください。';
+    status.textContent = '画像の読み取りに失敗しました。手動で入力してください。エラー: ' + err.message;
     status.style.color = 'var(--red)';
-    setTimeout(() => { status.style.display = 'none'; }, 4000);
+    setTimeout(function() { status.style.display = 'none'; }, 6000);
     console.error(err);
   }
 }
 
-// Set today's date by default
-const today = new Date();
-document.getElementById('date').value =
-  `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
+var today = new Date();
+document.getElementById('date').value = today.getFullYear() + '/' + String(today.getMonth()+1).padStart(2,'0') + '/' + String(today.getDate()).padStart(2,'0');
 
 async function analyze() {
-  const purpose = document.getElementById('purpose').value.trim();
-  const amount = document.getElementById('amount').value.trim();
-  const date = document.getElementById('date').value.trim();
+  var purpose = document.getElementById('purpose').value.trim();
+  var amount = document.getElementById('amount').value.trim();
+  var date = document.getElementById('date').value.trim();
 
   if (!purpose && !imageBase64) {
     alert('領収書の写真または利用目的を入力してください。');
@@ -762,54 +754,46 @@ async function analyze() {
   setLoading(true);
 
   try {
-    // Build Gemini parts
-    const parts = [];
+    var parts = [];
     if (imageBase64) {
-      parts.push({ inline_data: { mime_type: imageMimeType, data: imageBase64 } });
+      var jpegB64 = await resizeImage(imageBase64, imageMimeType);
+      parts.push({ inline_data: { mime_type: 'image/jpeg', data: jpegB64 } });
     }
-    const promptText = `あなたは日本の税務・会計の専門家です。以下の情報をもとに仕訳をJSONのみで返してください（コードブロック不要）。
+    var prompt = 'あなたは日本の税務・会計の専門家です。以下の情報をもとに仕訳をJSONのみで返してください。'
+      + '利用目的:' + (purpose || '不明') + ' '
+      + '金額:' + (amount || '不明') + '円 '
+      + '日付:' + date + ' '
+      + '{"category":"勘定科目","sub_category":"補助科目","tax_class":"課税仕入または非課税仕入または不課税","consumption_tax":消費税額の数値,"deductible":"fullまたはpartialまたはno","deductible_ratio":0から100の数値,"reason":"判断根拠2〜3文"}';
+    parts.push({ text: prompt });
 
-利用目的・メモ: ${purpose || '（未入力）'}
-金額: ${amount || '（未入力）'}円
-日付: ${date}
-${imageBase64 ? '（領収書画像あり）' : '（画像なし）'}
+    var body = {
+      contents: [{ parts: parts }],
+      generationConfig: { temperature: 0 }
+    };
 
-{
-  "category": "勘定科目名（例：会議費、接待交際費、旅費交通費、通信費、消耗品費、地代家賃、広告宣伝費、外注費、雑費）",
-  "sub_category": "補助科目（例：会食、電車賃、サブスク）",
-  "tax_class": "税区分（課税仕入／非課税仕入／不課税）",
-  "consumption_tax": 消費税額（数値）,
-  "deductible": "full／partial／no",
-  "deductible_ratio": 経費計上率（0〜100）,
-  "reason": "判断根拠を2〜3文で"
-}`;
-    parts.push({ text: promptText });
-
-    const response = await fetch(GEMINI_URL, {
+    var response = await fetch(GEMINI_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts }],
-        generationConfig: { temperature: 0 }
-      })
+      body: JSON.stringify(body)
     });
 
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const clean = text.replace(/```json|```/g, '').trim();
-    const result = JSON.parse(clean);
+    var data = await response.json();
+    if (data.error) throw new Error(data.error.message);
 
-    currentResult = {
-      ...result,
+    var text = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || '';
+    var clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    var result = JSON.parse(clean);
+
+    currentResult = Object.assign({}, result, {
       amount: parseInt(amount.replace(/[^0-9]/g, '')) || 0,
-      date,
-      purpose
-    };
+      date: date,
+      purpose: purpose
+    });
 
     displayResult(currentResult);
   } catch (err) {
     console.error(err);
-    alert('分析中にエラーが発生しました。もう一度お試しください。');
+    alert('分析中にエラーが発生しました: ' + err.message);
   }
 
   setLoading(false);
@@ -817,42 +801,34 @@ ${imageBase64 ? '（領収書画像あり）' : '（画像なし）'}
 
 function displayResult(r) {
   document.getElementById('resultEmpty').style.display = 'none';
-  const card = document.getElementById('resultCard');
-  card.style.display = 'block';
-
+  document.getElementById('resultCard').style.display = 'block';
   document.getElementById('categoryBadge').textContent = r.category;
   document.getElementById('categoryBadge').className = 'category-badge';
   document.getElementById('resultAmount').textContent = r.amount.toLocaleString();
   document.getElementById('accountItem').textContent = r.category;
   document.getElementById('subItem').textContent = r.sub_category || '—';
   document.getElementById('taxClass').textContent = r.tax_class;
-  document.getElementById('consumptionTax').textContent =
-    r.consumption_tax ? `¥${r.consumption_tax.toLocaleString()}` : '—';
+  document.getElementById('consumptionTax').textContent = r.consumption_tax ? '¥' + Number(r.consumption_tax).toLocaleString() : '—';
   document.getElementById('resultReason').textContent = r.reason;
-
-  const dot = document.getElementById('deductibleDot');
-  const text = document.getElementById('deductibleText');
+  var dot = document.getElementById('deductibleDot');
+  var txt = document.getElementById('deductibleText');
   if (r.deductible === 'full') {
     dot.className = 'deductible-dot';
-    text.textContent = `全額経費計上可能（${r.deductible_ratio}%）`;
+    txt.textContent = '全額経費計上可能（' + r.deductible_ratio + '%）';
   } else if (r.deductible === 'partial') {
     dot.className = 'deductible-dot partial';
-    text.textContent = `一部経費計上可能（${r.deductible_ratio}%）`;
+    txt.textContent = '一部経費計上可能（' + r.deductible_ratio + '%）';
   } else {
     dot.className = 'deductible-dot no';
-    text.textContent = '経費計上不可';
+    txt.textContent = '経費計上不可';
   }
 }
 
-// ---- Google Sheets 連携 ----
-
 async function saveRecord() {
   if (!currentResult) return;
-
-  const btn = document.querySelector('[onclick="saveRecord()"]');
+  var btn = document.querySelector('[onclick="saveRecord()"]');
   btn.disabled = true;
   btn.textContent = '保存中…';
-
   try {
     await fetch(GAS_URL, {
       method: 'POST',
@@ -860,48 +836,45 @@ async function saveRecord() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(currentResult)
     });
-
-    // 楽観的にローカルにも追加
-    records.push({ ...currentResult, id: Date.now() });
+    records.push(Object.assign({}, currentResult, { id: Date.now() }));
     renderTable();
-
-    // リセット
     document.getElementById('purpose').value = '';
     document.getElementById('amount').value = '';
+    document.getElementById('amount-hint').textContent = '';
+    document.getElementById('date-hint').textContent = '';
     document.getElementById('preview-container').style.display = 'none';
     imageBase64 = null;
     currentResult = null;
     document.getElementById('resultCard').style.display = 'none';
     document.getElementById('resultEmpty').style.display = 'flex';
-
     showToast('✓ Googleスプレッドシートに保存しました');
   } catch (err) {
     console.error(err);
-    alert('保存に失敗しました。GASのURLを確認してください。');
+    alert('保存に失敗しました。');
   }
-
   btn.disabled = false;
   btn.textContent = '＋ 仕訳を記録に追加する';
 }
 
 async function loadFromSheets() {
-  const status = document.getElementById('syncStatus');
+  var status = document.getElementById('syncStatus');
   status.textContent = '同期中…';
   try {
-    const res = await fetch(GAS_URL + '?action=get');
-    const rows = await res.json();
+    var res = await fetch(GAS_URL + '?action=get');
+    var rows = await res.json();
     if (!Array.isArray(rows) || rows.length < 2) { status.textContent = '記録なし'; return; }
-    // rows[0] = header
-    records = rows.slice(1).map((r, i) => ({
-      id: i + 1,
-      date: r[0], category: r[1], sub_category: r[2],
-      purpose: r[3], amount: Number(r[4]) || 0,
-      tax_class: r[5], consumption_tax: Number(r[6]) || 0,
-      deductible: r[7] === '全額' ? 'full' : r[7] === '一部' ? 'partial' : 'no',
-      deductible_ratio: r[7] === '全額' ? 100 : r[7] === '一部' ? 50 : 0
-    }));
+    records = rows.slice(1).map(function(r, i) {
+      return {
+        id: i + 1,
+        date: r[0], category: r[1], sub_category: r[2],
+        purpose: r[3], amount: Number(r[4]) || 0,
+        tax_class: r[5], consumption_tax: Number(r[6]) || 0,
+        deductible: r[7] === '全額' ? 'full' : r[7] === '一部' ? 'partial' : 'no',
+        deductible_ratio: r[7] === '全額' ? 100 : r[7] === '一部' ? 50 : 0
+      };
+    });
     renderTable();
-    status.textContent = `最終同期: ${new Date().toLocaleTimeString('ja-JP')}`;
+    status.textContent = '最終同期: ' + new Date().toLocaleTimeString('ja-JP');
   } catch (err) {
     status.textContent = '同期失敗';
     console.error(err);
@@ -909,13 +882,13 @@ async function loadFromSheets() {
 }
 
 function deleteRecord(id) {
-  records = records.filter(r => r.id !== id);
+  records = records.filter(function(r) { return r.id !== id; });
   renderTable();
-  showToast('削除しました（スプレッドシート側も手動で削除してください）');
+  showToast('削除しました');
 }
 
 function showToast(msg) {
-  let t = document.getElementById('toast');
+  var t = document.getElementById('toast');
   if (!t) {
     t = document.createElement('div');
     t.id = 'toast';
@@ -924,90 +897,74 @@ function showToast(msg) {
   }
   t.textContent = msg;
   t.style.opacity = '1';
-  setTimeout(() => t.style.opacity = '0', 3000);
+  setTimeout(function() { t.style.opacity = '0'; }, 3000);
 }
 
-const catColors = {
+var catColors = {
   '会議費': '#1a1a2e', '接待交際費': '#8b0000', '旅費交通費': '#1a5276',
   '通信費': '#154360', '消耗品費': '#784212', '広告宣伝費': '#1a6b2f',
   '外注費': '#4a235a', '地代家賃': '#2c3e50', '雑費': '#555'
 };
 
 function renderTable() {
-  const tbody = document.getElementById('recordsBody');
-  const table = document.getElementById('recordsTable');
-  const empty = document.getElementById('emptyTable');
-  const totals = document.getElementById('totalsBar');
-
+  var tbody = document.getElementById('recordsBody');
+  var table = document.getElementById('recordsTable');
+  var empty = document.getElementById('emptyTable');
+  var totals = document.getElementById('totalsBar');
   tbody.innerHTML = '';
-
   if (records.length === 0) {
-    table.style.display = 'none';
-    empty.style.display = 'block';
-    totals.style.display = 'none';
-    return;
+    table.style.display = 'none'; empty.style.display = 'block'; totals.style.display = 'none'; return;
   }
-
-  table.style.display = 'table';
-  empty.style.display = 'none';
-  totals.style.display = 'flex';
-
-  let totalAmt = 0, deductibleAmt = 0;
-
-  records.forEach(r => {
+  table.style.display = 'table'; empty.style.display = 'none'; totals.style.display = 'flex';
+  var totalAmt = 0, deductibleAmt = 0;
+  records.forEach(function(r) {
     totalAmt += r.amount;
-    const ratio = r.deductible_ratio || (r.deductible === 'full' ? 100 : r.deductible === 'partial' ? 50 : 0);
+    var ratio = r.deductible_ratio || (r.deductible === 'full' ? 100 : r.deductible === 'partial' ? 50 : 0);
     deductibleAmt += Math.round(r.amount * ratio / 100);
-
-    const color = catColors[r.category] || '#333';
-    const deductClass = r.deductible === 'full' ? 'tag-deductible' : r.deductible === 'partial' ? 'tag-partial' : 'tag-no';
-    const deductLabel = r.deductible === 'full' ? '✓ 全額' : r.deductible === 'partial' ? '△ 一部' : '✗ 不可';
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td style="font-family:'Space Mono',monospace;font-size:12px;white-space:nowrap">${r.date || '—'}</td>
-      <td><span class="cat-chip" style="color:${color};border-color:${color}">${r.category}</span></td>
-      <td style="color:var(--muted);max-width:200px;font-size:13px">${r.purpose || '—'}</td>
-      <td style="font-family:'Space Mono',monospace;text-align:right;font-size:14px">¥${r.amount.toLocaleString()}</td>
-      <td style="font-size:12px;color:var(--muted)">${r.tax_class || '—'}</td>
-      <td class="${deductClass}" style="font-family:'Space Mono',monospace;font-size:11px">${deductLabel}</td>
-      <td><button class="btn-delete" onclick="deleteRecord(${r.id})">×</button></td>
-    `;
+    var color = catColors[r.category] || '#333';
+    var deductClass = r.deductible === 'full' ? 'tag-deductible' : r.deductible === 'partial' ? 'tag-partial' : 'tag-no';
+    var deductLabel = r.deductible === 'full' ? '✓ 全額' : r.deductible === 'partial' ? '△ 一部' : '✗ 不可';
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td style="font-family:Space Mono,monospace;font-size:12px;white-space:nowrap">' + (r.date||'—') + '</td>'
+      + '<td><span class="cat-chip" style="color:' + color + ';border-color:' + color + '">' + r.category + '</span></td>'
+      + '<td style="color:var(--muted);max-width:200px;font-size:13px">' + (r.purpose||'—') + '</td>'
+      + '<td style="font-family:Space Mono,monospace;text-align:right;font-size:14px">¥' + r.amount.toLocaleString() + '</td>'
+      + '<td style="font-size:12px;color:var(--muted)">' + (r.tax_class||'—') + '</td>'
+      + '<td class="' + deductClass + '" style="font-family:Space Mono,monospace;font-size:11px">' + deductLabel + '</td>'
+      + '<td><button class="btn-delete" onclick="deleteRecord(' + r.id + ')">×</button></td>';
     tbody.appendChild(tr);
   });
-
-  document.getElementById('totalCount').textContent = `${records.length} 件`;
-  document.getElementById('totalAmount').textContent = `¥${totalAmt.toLocaleString()}`;
-  document.getElementById('deductibleAmount').textContent = `¥${deductibleAmt.toLocaleString()}`;
+  document.getElementById('totalCount').textContent = records.length + ' 件';
+  document.getElementById('totalAmount').textContent = '¥' + totalAmt.toLocaleString();
+  document.getElementById('deductibleAmount').textContent = '¥' + deductibleAmt.toLocaleString();
 }
 
 function exportCSV() {
   if (records.length === 0) { alert('記録がありません。'); return; }
-  const headers = ['日付', '勘定科目', '補助科目', '利用目的', '金額', '税区分', '消費税', '経費計上'];
-  const rows = records.map(r => [
-    r.date, r.category, r.sub_category || '', r.purpose,
-    r.amount, r.tax_class || '', r.consumption_tax || '',
-    r.deductible === 'full' ? '全額' : r.deductible === 'partial' ? '一部' : '不可'
-  ]);
-  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const bom = '\uFEFF';
-  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url;
-  a.download = `仕訳帳_${new Date().toISOString().slice(0,10)}.csv`;
+  var headers = ['日付','勘定科目','補助科目','利用目的','金額','税区分','消費税','経費計上'];
+  var rows = records.map(function(r) {
+    return [r.date, r.category, r.sub_category||'', r.purpose, r.amount, r.tax_class||'', r.consumption_tax||'',
+      r.deductible === 'full' ? '全額' : r.deductible === 'partial' ? '一部' : '不可'];
+  });
+  var csv = [headers].concat(rows).map(function(r) {
+    return r.map(function(v) { return '"' + String(v).replace(/"/g,'""') + '"'; }).join(',');
+  }).join('
+');
+  var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = '仕訳帳_' + new Date().toISOString().slice(0,10) + '.csv';
   a.click();
 }
 
 function setLoading(v) {
-  const btn = document.getElementById('analyzeBtn');
-  const text = document.getElementById('btn-text');
-  const spinner = document.getElementById('spinner');
+  var btn = document.getElementById('analyzeBtn');
+  document.getElementById('btn-text').style.display = v ? 'none' : 'inline';
+  document.getElementById('spinner').style.display = v ? 'block' : 'none';
   btn.disabled = v;
-  text.style.display = v ? 'none' : 'inline';
-  spinner.style.display = v ? 'block' : 'none';
 }
 
-// Init: load from Google Sheets
 loadFromSheets();
 </script>
 </body>
